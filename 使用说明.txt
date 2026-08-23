@@ -1,0 +1,21 @@
+Magic Trackpad 2 for Windows — 完整安装包
+
+文件清单
+========
+- AMD64\                        驱动本体（inf/cat/dll/sys），请勿改动
+- MagicTrackpad2ForWindows.cer  驱动作者自签证书（必须先导入，否则驱动装不上）
+- Install-Driver.bat            一键安装脚本（导入证书 + 安装驱动）
+- AmtPtpControlPanel-zh.exe     中文控制面板（反馈强度、手掌防误触、电量显示等）
+- app.ico                       面板图标（可选，不影响使用）
+
+全新系统安装步骤
+================
+1. 右键 Install-Driver.bat → 以管理员身份运行，等提示完成（两步都成功）
+2. 打开蓝牙，配对 Magic Trackpad 2；或直接用数据线连接
+3. 运行 AmtPtpControlPanel-zh.exe（自动请求管理员权限）按需调整
+
+备注
+====
+- 重装系统后证书和驱动都不会保留，每次都要先执行第 1 步
+- 若触摸板之前已配对但装完驱动没反应：删除蓝牙配对记录，重新配对一次即可
+- 控制面板改动会自动保存并即时生效（无需重启）
