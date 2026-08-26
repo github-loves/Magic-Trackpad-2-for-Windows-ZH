@@ -22,8 +22,13 @@ if %errorlevel% neq 0 (
 echo.
 echo [2/2] 正在安装驱动程序......
 pnputil /add-driver AMD64\AmtPtpDevice.inf /install
-if %errorlevel% neq 0 (
-    echo [错误] 驱动安装失败。请确认 AMD64 文件夹和本文件在同一目录里。
+set "DRVRC=%errorlevel%"
+if "%DRVRC%"=="0" (
+    echo 驱动安装成功。
+) else if "%DRVRC%"=="259" (
+    echo 检测到驱动已安装且为最新版本，无需重复安装。
+) else (
+    echo [错误] 驱动安装失败，错误码 %DRVRC%。请确认 AMD64 文件夹和本文件在同一目录里。
     pause
     exit /b 1
 )
