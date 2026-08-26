@@ -1,26 +1,30 @@
 @echo off
+chcp 65001 >nul
+cd /d "%~dp0"
+
 REM Magic Trackpad 2 driver installer: trust cert + install driver package
 
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [ERROR] Please right-click this file and choose "Run as administrator".
+    echo [错误] 请右键本文件，选择"以管理员身份运行"后再试。
     pause
     exit /b 1
 )
 
-echo [1/2] Importing author certificate to Trusted Root...
+echo [1/2] 正在导入驱动作者证书到受信任的根证书存储区......
 certutil -addstore -f Root MagicTrackpad2ForWindows.cer
 if %errorlevel% neq 0 (
-    echo [ERROR] Failed to import certificate.
+    echo [错误] 证书导入失败。请确认 MagicTrackpad2ForWindows.cer 和本文件在同一个文件夹里。
     pause
     exit /b 1
 )
 
 echo.
-echo [2/2] Installing driver package (AMD64)...
+echo [2/2] 正在安装驱动程序......
 pnputil /add-driver AMD64\AmtPtpDevice.inf /install
 
 echo.
-echo Done. Now pair the Magic Trackpad 2 via Bluetooth (or plug in USB cable).
-echo If it was already paired but does not work, remove the pairing and pair again.
+echo 全部完成！现在请通过蓝牙配对 Magic Trackpad 2，或用数据线直连。
+echo 如果之前已经配对过但触摸板没反应：删除蓝牙配对记录，重新配对一次即可。
+echo 之后可以运行 Magic Trackpad2 For Windows.exe 进行个性化调整。
 pause
