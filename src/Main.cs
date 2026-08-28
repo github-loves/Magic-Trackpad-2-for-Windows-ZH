@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -31,9 +32,24 @@ namespace AmtPtpControlPanel
         private System.Windows.Forms.Timer _batteryDelay;
         private System.Windows.Forms.Timer _batteryPoll;
 
+        private System.Drawing.Icon _trayIcon;
+        private bool _trayExit;
+        private bool _balloonShown;
+        private bool _startMinimized;
+
         public Main()
         {
             InitializeComponent();
+
+            string[] args = Environment.GetCommandLineArgs();
+            _startMinimized = args.Any(a => string.Equals(a, "/tray", StringComparison.OrdinalIgnoreCase)
+                                          || string.Equals(a, "-tray", StringComparison.OrdinalIgnoreCase));
+
+            if (_startMinimized)
+            {
+                this.WindowState = FormWindowState.Minimized;
+                this.ShowInTaskbar = false;
+            }
 
             _saveDebounce = new System.Windows.Forms.Timer();
             _saveDebounce.Interval = 500;
@@ -73,6 +89,41 @@ namespace AmtPtpControlPanel
             };
 
             _batteryDelay.Start();
+
+            notifyIcon.Visible = true;
+            notifyIcon.ContextMenuStrip = null;
+            UpdateTrayIcon(-1, false);
+
+            if (_startMinimized)
+            {
+                this.Hide();
+            }
+        }
+
+        private bool IsFirstRun()
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey key =
+                    Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\MagicTrackpad2Tray"))
+                {
+                    return key == null || key.GetValue("FirstRunDone") == null;
+                }
+            }
+            catch { return true; }
+        }
+
+        private void MarkFirstRunDone()
+        {
+            try
+            {
+                using (Microsoft.Win32.RegistryKey key =
+                    Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\MagicTrackpad2Tray"))
+                {
+                    key.SetValue("FirstRunDone", 1);
+                }
+            }
+            catch { }
         }
 
         private void Main_FormClosed(object sender, FormClosedEventArgs e)
@@ -81,6 +132,8 @@ namespace AmtPtpControlPanel
             _saveDebounce.Dispose();
             if (_batteryDelay != null) _batteryDelay.Dispose();
             if (_batteryPoll != null) _batteryPoll.Dispose();
+            if (notifyIcon != null) notifyIcon.Visible = false;
+            if (_trayIcon != null) _trayIcon.Dispose();
         }
 
         private void LoadSettingsIntoControls()
@@ -124,9 +177,15 @@ namespace AmtPtpControlPanel
             }
 
             if (buttonDisabled != 0)
+            {
                 tglDisable.Checked = true;
+                sldFeedback.Value = 0;
+            }
             else if (feedbackClick == 0xffffff && feedbackRelease == 0xffffff)
+            {
                 tglMaximum.Checked = true;
+                sldFeedback.Value = 100;
+            }
             else
                 sldFeedback.Value = FeedbackClickToValue(feedbackClick);
 
@@ -148,6 +207,7 @@ namespace AmtPtpControlPanel
             tglButtonFinger.Checked = ignoreButtonFinger != 0;
             tglNearFingers.Checked = ignoreNearFingers != 0;
             tglPalmRejection.Checked = palmRejection != 0;
+            tglAutoStart.Checked = AutoStartTaskExists();
         }
 
         //=================
@@ -234,6 +294,8 @@ namespace AmtPtpControlPanel
             btnTouchpadSettings.Text = s[13];
             sldFeedback.MinText = s[14];
             sldFeedback.MaxText = s[15];
+
+            UpdateTrayMenuText();
 
             LayoutBattery();
             RepositionStopRows();
@@ -498,14 +560,200 @@ namespace AmtPtpControlPanel
             {
                 lblBattery.Text = level.ToString() + "%";
                 batteryIcon.Percent = (int)level;
+                UpdateTrayIcon((int)level, batteryIcon.Charging);
             }
             else
             {
                 lblBattery.Text = "--%";
                 batteryIcon.Percent = -1;
+                UpdateTrayIcon(-1, batteryIcon.Charging);
             }
 
             LayoutBattery();
+        }
+
+        //=================
+        // Tray icon (phone-style battery with the percentage drawn inside)
+        //=================
+
+        private void UpdateTrayMenuText()
+        {
+            trayShow.Text = _english ? "Show Window" : "显示窗口";
+            trayExit.Text = _english ? "Exit" : "退出";
+            trayExit.ForeColor = Color.FromArgb(255, 59, 48);
+        }
+
+        private void UpdateTrayIcon(int percent, bool charging)
+        {
+            const int S = 128;
+            using (Bitmap bmp = new Bitmap(S, S))
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.Clear(Color.Transparent);
+
+                // vertical battery that fills the canvas so it looks as large as other tray icons
+                int bodyW = 84, bodyH = 102;
+                int bx = (S - bodyW) / 2;
+                int by = 22;
+                Rectangle body = new Rectangle(bx, by, bodyW, bodyH);
+
+                // cap (nub) on top, like a phone battery
+                int nubW = 40, nubH = 12;
+                Rectangle nub = new Rectangle((S - nubW) / 2, by - nubH + 2, nubW, nubH);
+
+                Color outline = Color.FromArgb(90, 90, 98);
+
+                using (GraphicsPath path = Shapes.RoundedRect(body, 14))
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(220, 220, 225)))
+                using (Pen p = new Pen(outline, 5))
+                {
+                    g.FillPath(b, path);
+                    g.DrawPath(p, path);
+                }
+                using (SolidBrush b = new SolidBrush(outline))
+                    g.FillRectangle(b, nub);
+
+                // level color: green / yellow / red by threshold
+                Color level;
+                if (percent < 0) level = Color.FromArgb(200, 200, 205);
+                else if (percent > 50) level = Palette.Green;
+                else if (percent >= 10) level = Color.FromArgb(255, 204, 0);
+                else level = Palette.Red;
+
+                if (percent > 0)
+                {
+                    Rectangle inner = new Rectangle(body.X + 6, body.Y + 6, body.Width - 12, body.Height - 12);
+                    int fh = (int)Math.Round(inner.Height * percent / 100.0);
+                    if (fh > 0)
+                    {
+                        Rectangle fillRect = new Rectangle(inner.X, inner.Bottom - fh, inner.Width, fh);
+                        using (GraphicsPath path = Shapes.RoundedRect(fillRect, 8))
+                        using (SolidBrush b = new SolidBrush(level))
+                            g.FillPath(b, path);
+                    }
+                }
+
+                if (charging)
+                {
+                    PointF c = new PointF(body.X + body.Width / 2f, body.Y + body.Height / 2f);
+                    float s = body.Width * 0.5f;
+                    PointF[] bolt = new PointF[]
+                    {
+                        new PointF(c.X + s * 0.12f, c.Y - s * 0.42f),
+                        new PointF(c.X - s * 0.30f, c.Y + s * 0.08f),
+                        new PointF(c.X - s * 0.02f, c.Y + s * 0.08f),
+                        new PointF(c.X - s * 0.16f, c.Y + s * 0.46f),
+                        new PointF(c.X + s * 0.32f, c.Y - s * 0.06f),
+                        new PointF(c.X + s * 0.02f, c.Y - s * 0.06f)
+                    };
+                    using (SolidBrush b = new SolidBrush(Color.White))
+                        g.FillPolygon(b, bolt);
+                }
+
+                IntPtr hIcon = bmp.GetHicon();
+                Icon newIcon = Icon.FromHandle(hIcon);
+                if (_trayIcon != null) _trayIcon.Dispose();
+                _trayIcon = newIcon;
+                notifyIcon.Icon = _trayIcon;
+            }
+
+            notifyIcon.Text = percent >= 0
+                ? string.Format("Magic Trackpad 2 — 电量 {0}%{1}", percent, charging ? " (充电中)" : "")
+                : "Magic Trackpad 2 — 电量未知";
+        }
+
+        private void notifyIcon_DoubleClick(object sender, EventArgs e)
+        {
+            trayShow_Click(sender, e);
+        }
+
+        private void trayShow_Click(object sender, EventArgs e)
+        {
+            this.ShowInTaskbar = true;
+            this.Show();
+            this.WindowState = FormWindowState.Normal;
+            this.BringToFront();
+        }
+
+        private void trayExit_Click(object sender, EventArgs e)
+        {
+            _trayExit = true;
+            this.Close();
+        }
+
+        private void ctlAutoStart_CheckedChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            SetAutoStart(tglAutoStart.Checked);
+        }
+
+        //=================
+        // Silent autostart via Task Scheduler (elevated, no UAC prompt at logon)
+        //=================
+
+        private const string AutoStartTaskName = "MagicTrackpad2TrayAutostart";
+
+        private bool AutoStartTaskExists()
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo(
+                    "schtasks.exe", "/Query /TN \"" + AutoStartTaskName + "\"")
+                {
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                using (Process p = Process.Start(psi))
+                {
+                    p.WaitForExit();
+                    return p.ExitCode == 0;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void SetAutoStart(bool enable)
+        {
+            try
+            {
+                string exe = Application.ExecutablePath;
+                string args;
+                if (enable)
+                    args = "/Create /TN \"" + AutoStartTaskName + "\" /TR \"\\\"" + exe + "\\\" /tray\" /SC ONLOGON /RL HIGHEST /F";
+                else
+                    args = "/Delete /TN \"" + AutoStartTaskName + "\" /F";
+
+                ProcessStartInfo psi = new ProcessStartInfo("schtasks.exe", args)
+                {
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                using (Process p = Process.Start(psi))
+                {
+                    p.WaitForExit();
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            if (this.WindowState == FormWindowState.Minimized)
+                this.Hide();
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
         }
 
         private delegate void delStringRefInt32Void(string _1, ref Int32 _2);
@@ -789,6 +1037,86 @@ namespace AmtPtpControlPanel
                 {
                     hDevice.Dispose();
                 }
+            }
+        }
+    }
+
+    // Frosted "liquid glass" renderer for the tray context menu
+    internal class GlassMenuRenderer : ToolStripProfessionalRenderer
+    {
+        public GlassMenuRenderer()
+        {
+            RoundedEdges = false;
+        }
+
+        protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            Rectangle rect = new Rectangle(0, 0, e.ToolStrip.Width, e.ToolStrip.Height);
+
+            // translucent frosted glass body so the DWM blur shows through (iOS 26 feel)
+            using (System.Drawing.Drawing2D.LinearGradientBrush br = new System.Drawing.Drawing2D.LinearGradientBrush(
+                rect, Color.FromArgb(205, 248, 250, 252), Color.FromArgb(180, 232, 236, 242), System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+            {
+                g.FillRectangle(br, rect);
+            }
+
+            // top sheen highlight (liquid glass reflection)
+            using (System.Drawing.Drawing2D.LinearGradientBrush sheen = new System.Drawing.Drawing2D.LinearGradientBrush(
+                new Rectangle(0, 0, rect.Width, 16), Color.FromArgb(255, 255, 255, 200), Color.FromArgb(255, 255, 255, 0), System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+            {
+                g.FillRectangle(sheen, 0, 0, rect.Width, 16);
+            }
+
+            // subtle inner light ring + outer hairline border
+            using (Pen inner = new Pen(Color.FromArgb(255, 255, 255, 220), 1))
+                g.DrawRectangle(inner, 1f, 1f, rect.Width - 2, rect.Height - 2);
+            using (Pen outer = new Pen(Color.FromArgb(200, 204, 212), 1))
+                g.DrawRectangle(outer, 0.5f, 0.5f, rect.Width - 1, rect.Height - 1);
+        }
+
+        protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            Rectangle r = new Rectangle(6, e.Item.Bounds.Y + 3, e.ToolStrip.Width - 12, e.Item.Bounds.Height - 6);
+            bool destructive = !e.Item.ForeColor.IsEmpty;
+            Color fill;
+            if (destructive)
+                fill = e.Item.Selected ? Color.FromArgb(255, 89, 78) : Color.FromArgb(255, 59, 48);
+            else
+                fill = e.Item.Selected ? Color.FromArgb(64, 126, 198) : Color.FromArgb(232, 236, 242);
+            using (System.Drawing.Drawing2D.GraphicsPath path = Shapes.RoundedRect(r, 10))
+            using (SolidBrush b = new SolidBrush(fill))
+                g.FillPath(b, path);
+        }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            bool destructive = !e.Item.ForeColor.IsEmpty;
+            if (e.Item.Selected || destructive)
+                e.TextColor = Color.White;
+            else
+                e.TextColor = Color.FromArgb(30, 30, 35);
+            base.OnRenderItemText(e);
+        }
+
+        protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+        {
+            ToolStripMenuItem tsmi = e.Item as ToolStripMenuItem;
+            if (tsmi == null || !tsmi.Checked) return;
+            Graphics g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            Rectangle r = new Rectangle(e.ToolStrip.Padding.Left + 4, e.Item.Bounds.Y + e.Item.Bounds.Height / 2 - 5, 11, 10);
+            using (Pen p = new Pen(Color.FromArgb(0, 122, 255), 2))
+            {
+                g.DrawLines(p, new Point[]
+                {
+                    new Point(r.Left + 1, r.Top + 5),
+                    new Point(r.Left + 4, r.Top + 8),
+                    new Point(r.Left + 10, r.Top + 1)
+                });
             }
         }
     }

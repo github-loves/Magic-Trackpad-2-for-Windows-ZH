@@ -237,21 +237,85 @@ namespace AmtPtpControlPanel
             // btnTouchpadSettings
             // 
             this.btnTouchpadSettings.Font = new System.Drawing.Font("Microsoft YaHei UI", 9.5F);
-            this.btnTouchpadSettings.Location = new System.Drawing.Point(16, 662);
+            this.btnTouchpadSettings.Location = new System.Drawing.Point(16, 744);
             this.btnTouchpadSettings.Name = "btnTouchpadSettings";
             this.btnTouchpadSettings.Size = new System.Drawing.Size(783, 48);
             this.btnTouchpadSettings.Click += new System.EventHandler(this.ctlTouchpadSettings_Click);
+            // 
+            // cardStartup
+            // 
+            this.cardStartup = new AmtPtpControlPanel.Card();
+            this.tglAutoStart = new AmtPtpControlPanel.ToggleSwitch();
+            this.cardStartup.SuspendLayout();
+            // 
+            // tglAutoStart
+            // 
+            this.tglAutoStart.Location = new System.Drawing.Point(28, 34);
+            this.tglAutoStart.Name = "tglAutoStart";
+            this.tglAutoStart.Size = new System.Drawing.Size(727, 30);
+            this.tglAutoStart.Text = "开机自启（静默托盘）";
+            this.tglAutoStart.CheckedChanged += new System.EventHandler(this.ctlAutoStart_CheckedChanged);
+            // 
+            // cardStartup
+            // 
+            this.cardStartup.Controls.Add(this.tglAutoStart);
+            this.cardStartup.Location = new System.Drawing.Point(16, 658);
+            this.cardStartup.Name = "cardStartup";
+            this.cardStartup.Size = new System.Drawing.Size(783, 76);
+            this.cardStartup.TabIndex = 0;
+            this.cardStartup.Text = "启动选项";
+            this.cardStartup.ResumeLayout(false);
+            // 
+            // tray components
+            // 
+            this.trayMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.trayShow = new System.Windows.Forms.ToolStripMenuItem();
+            this.trayExit = new System.Windows.Forms.ToolStripMenuItem();
+            this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
+            // 
+            // trayMenu
+            // 
+            this.trayMenu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.trayExit});
+            this.trayMenu.Name = "trayMenu";
+            this.trayMenu.Size = new System.Drawing.Size(140, 70);
+            // 
+            // trayShow
+            // 
+            this.trayShow.Name = "trayShow";
+            this.trayShow.Size = new System.Drawing.Size(139, 24);
+            this.trayShow.Text = "显示窗口";
+            this.trayShow.Click += new System.EventHandler(this.trayShow_Click);
+            // 
+            // trayExit
+            // 
+            this.trayExit.Name = "trayExit";
+            this.trayExit.Size = new System.Drawing.Size(139, 24);
+            this.trayExit.Text = "退出";
+            this.trayExit.Click += new System.EventHandler(this.trayExit_Click);
+            // 
+            // notifyIcon
+            // 
+            this.trayMenu.Renderer = new AmtPtpControlPanel.GlassMenuRenderer();
+            this.trayMenu.ForeColor = System.Drawing.Color.FromArgb(30, 30, 35);
+            this.trayMenu.ShowImageMargin = false;
+            this.trayMenu.ShowCheckMargin = true;
+            this.trayMenu.DropShadowEnabled = true;
+            this.notifyIcon.ContextMenuStrip = this.trayMenu;
+            this.notifyIcon.Text = "Magic Trackpad 2";
+            this.notifyIcon.DoubleClick += new System.EventHandler(this.notifyIcon_DoubleClick);
             // 
             // Main
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(815, 726);
+            this.ClientSize = new System.Drawing.Size(815, 808);
             this.Controls.Add(this.pnlHeader);
             this.Controls.Add(this.cardFeedback);
             this.Controls.Add(this.cardModes);
             this.Controls.Add(this.cardStop);
             this.Controls.Add(this.cardOther);
+            this.Controls.Add(this.cardStartup);
             this.Controls.Add(this.btnTouchpadSettings);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
@@ -299,5 +363,11 @@ namespace AmtPtpControlPanel
         private AmtPtpControlPanel.ToggleSwitch tglButtonFinger;
         private AmtPtpControlPanel.ToggleSwitch tglPalmRejection;
         private AmtPtpControlPanel.CellButton btnTouchpadSettings;
+        private System.Windows.Forms.NotifyIcon notifyIcon;
+        private System.Windows.Forms.ContextMenuStrip trayMenu;
+        private System.Windows.Forms.ToolStripMenuItem trayShow;
+        private System.Windows.Forms.ToolStripMenuItem trayExit;
+        private AmtPtpControlPanel.Card cardStartup;
+        private AmtPtpControlPanel.ToggleSwitch tglAutoStart;
     }
 }
