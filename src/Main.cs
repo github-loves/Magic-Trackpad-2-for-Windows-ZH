@@ -592,47 +592,66 @@ namespace AmtPtpControlPanel
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                 g.Clear(Color.Transparent);
 
-                // vertical battery that fills the canvas so it looks as large as other tray icons
-                int bodyW = 84, bodyH = 102;
+                // 竖向电池：瘦长机身 + 顶部小电极帽，避免像桶
+                int bodyW = 48, bodyH = 96;
                 int bx = (S - bodyW) / 2;
-                int by = 22;
+                int by = 20;
                 Rectangle body = new Rectangle(bx, by, bodyW, bodyH);
 
-                // cap (nub) on top, like a phone battery
-                int nubW = 40, nubH = 12;
-                Rectangle nub = new Rectangle((S - nubW) / 2, by - nubH + 2, nubW, nubH);
+                // 顶部电极（白色实心帽），比机身窄，明显凸出
+                int nubW = 24, nubH = 16;
+                Rectangle nub = new Rectangle((S - nubW) / 2, by - 12, nubW, nubH);
 
-                Color outline = Color.FromArgb(90, 90, 98);
+                Color white = Color.White;
+                Color edge = Color.FromArgb(55, 59, 67);
 
-                using (GraphicsPath path = Shapes.RoundedRect(body, 14))
-                using (SolidBrush b = new SolidBrush(Color.FromArgb(220, 220, 225)))
-                using (Pen p = new Pen(outline, 5))
-                {
-                    g.FillPath(b, path);
-                    g.DrawPath(p, path);
-                }
-                using (SolidBrush b = new SolidBrush(outline))
-                    g.FillRectangle(b, nub);
+                // 1) 白色机身实心填充，保证轮廓完整闭合（不再用描边，避免底部被裁/发灰）
+                using (GraphicsPath bodyPath = Shapes.RoundedRect(body, 12))
+                using (SolidBrush wb = new SolidBrush(white))
+                    g.FillPath(wb, bodyPath);
 
-                // level color: green / yellow / red by threshold
+                // 电量颜色阈值
                 Color level;
-                if (percent < 0) level = Color.FromArgb(200, 200, 205);
+                if (percent < 0) level = Color.FromArgb(190, 194, 201);
                 else if (percent > 50) level = Palette.Green;
                 else if (percent >= 10) level = Color.FromArgb(255, 204, 0);
                 else level = Palette.Red;
 
-                if (percent > 0)
+                // 2) 内胆留白（空电部分=白色，不再用深灰），精准彩色填充从底部升起（向内缩 8px = 粗白框）
+                int pad = 8;
+                Rectangle inner = new Rectangle(body.X + pad, body.Y + pad, body.Width - pad * 2, body.Height - pad * 2);
+                using (GraphicsPath innerPath = Shapes.RoundedRect(inner, 5))
                 {
-                    Rectangle inner = new Rectangle(body.X + 6, body.Y + 6, body.Width - 12, body.Height - 12);
-                    int fh = (int)Math.Round(inner.Height * percent / 100.0);
-                    if (fh > 0)
+                    if (percent > 0)
                     {
-                        Rectangle fillRect = new Rectangle(inner.X, inner.Bottom - fh, inner.Width, fh);
-                        using (GraphicsPath path = Shapes.RoundedRect(fillRect, 8))
-                        using (SolidBrush b = new SolidBrush(level))
-                            g.FillPath(b, path);
+                        int fh = (int)Math.Round(inner.Height * percent / 100.0);
+                        if (fh > 0)
+                        {
+                            var st = g.Save();
+                            g.SetClip(innerPath);
+                            g.FillRectangle(new SolidBrush(level), new Rectangle(inner.X, inner.Bottom - fh, inner.Width, fh));
+                            g.Restore(st);
+                        }
+                    }
+                    else if (percent < 0)
+                    {
+                        // 未知电量：内胆浅灰，区别于空电(纯白)
+                        g.FillPath(new SolidBrush(Color.FromArgb(190, 194, 201)), innerPath);
                     }
                 }
+
+                // 3) 电极帽（白色实心，盖在机身顶部）
+                using (GraphicsPath nubPath = Shapes.RoundedRect(nub, 3))
+                using (SolidBrush b = new SolidBrush(white))
+                    g.FillPath(b, nubPath);
+
+                // 4) 细深色描边，保证在浅色任务栏上也清晰（仅 1.5px 外轮廓，不是灰色填充）
+                using (GraphicsPath bodyPath = Shapes.RoundedRect(body, 12))
+                using (Pen p = new Pen(edge, 1.5f))
+                    g.DrawPath(p, bodyPath);
+                using (GraphicsPath nubPath = Shapes.RoundedRect(nub, 3))
+                using (Pen p = new Pen(edge, 1.5f))
+                    g.DrawPath(p, nubPath);
 
                 if (charging)
                 {
@@ -647,7 +666,7 @@ namespace AmtPtpControlPanel
                         new PointF(c.X + s * 0.32f, c.Y - s * 0.06f),
                         new PointF(c.X + s * 0.02f, c.Y - s * 0.06f)
                     };
-                    using (SolidBrush b = new SolidBrush(Color.White))
+                    using (SolidBrush b = new SolidBrush(Color.FromArgb(40, 44, 52)))
                         g.FillPolygon(b, bolt);
                 }
 

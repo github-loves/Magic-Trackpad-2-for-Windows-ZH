@@ -253,7 +253,7 @@ namespace AmtPtpControlPanel
             this.tglAutoStart.Location = new System.Drawing.Point(28, 34);
             this.tglAutoStart.Name = "tglAutoStart";
             this.tglAutoStart.Size = new System.Drawing.Size(727, 30);
-            this.tglAutoStart.Text = "开机自启（静默托盘）";
+            this.tglAutoStart.Text = "开机自启及任务栏显示电池电量";
             this.tglAutoStart.CheckedChanged += new System.EventHandler(this.ctlAutoStart_CheckedChanged);
             // 
             // cardStartup
